@@ -34,7 +34,7 @@ tabr clip mypassword
 ```
 
 
-# The Name
+## The Name
 
 In Frank Herbert's Dune, Sietch Tabr is one of the primary hideouts of the
 Fremen people of Arrakis.
