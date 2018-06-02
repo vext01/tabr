@@ -177,7 +177,7 @@ impl Tabr {
     /// Print a password string in the clear to stdout.
     pub fn stdout(&mut self, pwid: &str) -> Result<(), Box<Error>> {
         let pw = self.get_clear_password(pwid)?;
-        print!("{}", pw.clear_text());
+        println!("{}", pw.clear_text());
         Ok(())
     }
 
