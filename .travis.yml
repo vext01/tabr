@@ -11,5 +11,4 @@ before_install:
 
 script:
     - cargo test
-    - cargo test --release
     - cargo doc --no-deps
