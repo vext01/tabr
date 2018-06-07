@@ -5,6 +5,10 @@ cache: cargo
 before_script:
     - export PATH="$PATH:$HOME/.cargo/bin"
 
+before_install:
+    - sudo apt-get update -qq
+    - sudo apt-get install libgpgme-dev
+
 script:
     - cargo test
     - cargo test --release
