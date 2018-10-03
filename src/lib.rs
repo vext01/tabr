@@ -14,7 +14,7 @@ mod config;
 mod password;
 mod gpg;
 
-pub use password::ClearPassword;
+pub use password::{ClearPassword, PasswordEdit};
 
 use clipboard::ClipboardProvider;
 use clipboard::x11_clipboard::{X11ClipboardContext, Primary, Clipboard};
@@ -213,7 +213,7 @@ impl Tabr {
         // And commit to disk.
         let epw = pw.encrypt(&mut self.gpg, &self.config.encrypt_to())
                     .map_err(|e| format!("Failed to encrypt: {}", e))?;
-        epw.to_disk(full_path)
+        epw.to_disk(full_path, true)
            .map_err(|e| format!("Failed to write pasword file: {}", e))?;
         Ok(())
     }
@@ -347,11 +347,56 @@ impl Tabr {
 
         Ok(())
     }
+
+    /// Edit an existing password entry.
+    pub fn edit_password(&mut self, pwid: &str, edit: PasswordEdit) -> Result<(), Box<Error>> {
+        info!("Edit password '{}'", pwid);
+
+        let epw = EncryptedPassword::from_file(self.password_path(pwid))
+            .map_err(|e|format!("Failed to read password '{}' from file: {}", pwid, e))?;
+
+        let mut cpw = epw.decrypt(&mut self.gpg)
+            .map_err(|e| format!("Failed to decrypt password '{}': {}", pwid, e))?;
+
+        if let Some(username) = edit.username() {
+            if username == "" {
+                cpw.new_username::<String>(None);
+            } else {
+                cpw.new_username(Some(username));
+            }
+        }
+        if let Some(email) = edit.email() {
+            if email == "" {
+                cpw.new_email::<String>(None);
+            } else {
+                cpw.new_email(Some(email));
+            }
+        }
+
+        if let Some(comment) = edit.comment() {
+            if comment == "" {
+                cpw.new_comment::<String>(None);
+            } else {
+                cpw.new_comment(Some(comment));
+            }
+        }
+
+        if let Some(clear_text) = edit.clear_text() {
+            cpw.new_clear_text(clear_text);
+        }
+
+        let epw = cpw.encrypt(&mut self.gpg, &self.config.encrypt_to())
+                     .map_err(|e| format!("Failed to encrypt: {}", e))?;
+        epw.to_disk(self.password_path(pwid), false)
+           .map_err(|e| format!("Failed to write pasword file: {}", e))?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Tabr, GPG, ClearPassword};
+    use super::{Tabr, GPG, ClearPassword, PasswordEdit};
     use config::CONFIG_FILENAME;
     use tempfile::{self, TempDir};
     use std::path::{PathBuf, Path};
@@ -535,5 +580,42 @@ mod tests {
             Err(s) => assert_eq!(s, expect),
             _ => panic!(),
         }
+    }
+
+    // Test editting everything.
+    #[test]
+    fn test_edit1() {
+        let pwid = "abc";
+        let mut st = TestState::new(None);
+        let pw = ClearPassword::new(Some("username"), Some("email"), Some("comment"), "secret");
+        st.app.add_password(pwid, pw).unwrap();
+
+        let edit = PasswordEdit::new(Some("username2"), Some("email2"), Some("comment2"),
+                                     Some("secret2"));
+        st.app.edit_password(pwid, edit).unwrap();
+
+        let new_pw = st.app.get_clear_password(pwid).unwrap();
+        assert_eq!(new_pw.username().unwrap(), "username2");
+        assert_eq!(new_pw.email().unwrap(), "email2");
+        assert_eq!(new_pw.comment().unwrap(), "comment2");
+        assert_eq!(new_pw.clear_text(), "secret2");
+    }
+
+    // Test editting nothing. Should be a NOP.
+    #[test]
+    fn test_edit2() {
+        let pwid = "abc";
+        let mut st = TestState::new(None);
+        let pw = ClearPassword::new(Some("username"), Some("email"), Some("comment"), "secret");
+        st.app.add_password(pwid, pw).unwrap();
+
+        let edit = PasswordEdit::new::<&str>(None, None, None, None);
+        st.app.edit_password(pwid, edit).unwrap();
+
+        let new_pw = st.app.get_clear_password(pwid).unwrap();
+        assert_eq!(new_pw.username().unwrap(), "username");
+        assert_eq!(new_pw.email().unwrap(), "email");
+        assert_eq!(new_pw.comment().unwrap(), "comment");
+        assert_eq!(new_pw.clear_text(), "secret");
     }
 }

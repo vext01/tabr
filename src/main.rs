@@ -5,7 +5,7 @@ extern crate clap;
 extern crate log;
 extern crate env_logger;
 
-use tabr::{Tabr, ClearPassword, NoConfig};
+use tabr::{Tabr, ClearPassword, NoConfig, PasswordEdit};
 use ttyaskpass::askpass;
 
 use std::path::PathBuf;
@@ -108,12 +108,52 @@ fn main() {
                                                  .required(true)
                                                  .takes_value(true))
                                         .about("Temporarily load a password into the clipboard"))
+                 .subcommand(SubCommand::with_name("edit")
+                                        .arg(Arg::with_name("username")
+                                                 .short("-u")
+                                                 .long("--username")
+                                                 .takes_value(true)
+                                                 .help("Set the username (pass \"\" to \
+                                                        remove the existing username)"))
+                                        .arg(Arg::with_name("email")
+                                                 .short("-e")
+                                                 .long("--email")
+                                                 .takes_value(true)
+                                                 .help("Set the email address (pass \"\" \
+                                                        to remove the existing address)"))
+                                        .arg(Arg::with_name("comment")
+                                                 .short("-c")
+                                                 .long("--comment")
+                                                 .takes_value(true)
+                                                 .help("Set the comment address (pass \"\" \
+                                                        to remove the existing comment)"))
+                                        .arg(Arg::with_name("--password")
+                                                 .short("-p")
+                                                 .long("--password")
+                                                 .help("Request a password reset"))
+                                        .arg(Arg::with_name("pwid")
+                                                 .index(1)
+                                                 .required(true)
+                                                 .takes_value(true)
+                                                 .help("The ID of the password to edit"))
+                                        .about("Edit the contents of an existing password \
+                                                entry"))
                  .subcommand(SubCommand::with_name("stdout")
                                         .arg(Arg::with_name("pwid")
                                                  .index(1)
                                                  .required(true)
                                                  .takes_value(true))
                                         .about("Prints a password in the clear to stdout"));
+
+    fn match_to_arg(m: Option<&str>) -> Option<String> {
+        m.map(|s| String::from(s))
+    }
+
+    fn read_cleartext() -> String {
+        let clear_text_arr: Vec<u8> = askpass("password: ", '*').unwrap();
+        String::from_utf8(clear_text_arr)
+               .unwrap_or_else(|_|print_error("failed to read in cleartext"))
+    }
 
     let matches = app.get_matches();
     let res: Result<(), Box<Error>> = match matches.subcommand_name() {
@@ -124,20 +164,12 @@ fn main() {
         Some("add") => {
             let matches = matches.subcommand_matches("add").unwrap();
             let pwid = matches.value_of("pwid").unwrap();
-
-            fn match_to_arg(m: Option<&str>) -> Option<String> {
-                m.map(|s| String::from(s))
-            }
             let username = match_to_arg(matches.value_of("username"));
             let email = match_to_arg(matches.value_of("email"));
             let comment = match_to_arg(matches.value_of("comment"));
 
             // Read in the password as late as possible.
-            let clear_text_arr: Vec<u8> = askpass("password: ", '*').unwrap();
-            let clear_text = match String::from_utf8(clear_text_arr) {
-                Ok(s) => s,
-                _ => print_error("Failed to interpret password as UTF-8"),
-            };
+            let clear_text = read_cleartext();
 
             let mut pw = ClearPassword::new(username, email, comment, clear_text);
             tabr.add_password(&pwid, pw)
@@ -145,6 +177,25 @@ fn main() {
         Some("clip") => {
             let matches = matches.subcommand_matches("clip").unwrap();
             tabr.clip(matches.value_of("pwid").unwrap())
+        },
+        Some("edit") => {
+            let matches = matches.subcommand_matches("edit").unwrap();
+
+            let pwid = matches.value_of("pwid").unwrap();
+
+            let username = match_to_arg(matches.value_of("username"));
+            let email = match_to_arg(matches.value_of("email"));
+            let comment = match_to_arg(matches.value_of("comment"));
+
+            let clear_text = if matches.value_of("password").is_some() {
+                // Read in the password as late as possible.
+                Some(read_cleartext())
+            } else {
+                None
+            };
+
+            let mut pwe = PasswordEdit::new(username, email, comment, clear_text);
+            tabr.edit_password(&pwid, pwe)
         },
         Some("stdout") => {
             let matches = matches.subcommand_matches("stdout").unwrap();
