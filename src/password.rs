@@ -19,9 +19,9 @@ pub struct EncryptedPassword {
 /// An encrypted password and its meta-data.
 impl EncryptedPassword {
     pub fn new<A>(username: Option<A>,
-               email: Option<A>,
-               comment: Option<A>,
-               cipher_text: A) -> Self  where A: Into<String> {
+                  email: Option<A>,
+                  comment: Option<A>,
+                  cipher_text: A) -> Self  where A: Into<String> {
         Self {
             username: username.map(|a| a.into()),
             email: email.map(|a| a.into()),
@@ -90,9 +90,9 @@ pub struct ClearPassword {
 /// An unencrypted password and its meta-data.
 impl ClearPassword {
     pub fn new<A>(username: Option<A>,
-               email: Option<A>,
-               comment: Option<A>,
-               clear_text: A) -> Self where A: Into<String> {
+                  email: Option<A>,
+                  comment: Option<A>,
+                  clear_text: A) -> Self where A: Into<String> {
         Self {
             username: username.map(|a| a.into()),
             email: email.map(|a| a.into()),
@@ -157,9 +157,9 @@ pub struct PasswordEdit {
 
 impl PasswordEdit {
     pub fn new<A>(username: Option<A>,
-                           email: Option<A>,
-                           comment: Option<A>,
-                           clear_text: Option<A>) -> Self where A: Into<String> {
+                  email: Option<A>,
+                  comment: Option<A>,
+                  clear_text: Option<A>) -> Self where A: Into<String> {
         Self {
             username: username.map(|a| a.into()),
             email: email.map(|a| a.into()),
