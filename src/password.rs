@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use toml;
 use gpg::{GPG};
 use std::os::unix::fs::OpenOptionsExt;
-use std::convert::Into;
 use PROTECTED_MODE;
 use std::error::Error;
 
@@ -18,16 +17,11 @@ pub struct EncryptedPassword {
 
 /// An encrypted password and its meta-data.
 impl EncryptedPassword {
-    pub fn new<A>(username: Option<A>,
-                  email: Option<A>,
-                  comment: Option<A>,
-                  cipher_text: A) -> Self  where A: Into<String> {
-        Self {
-            username: username.map(|a| a.into()),
-            email: email.map(|a| a.into()),
-            comment: comment.map(|a| a.into()),
-            cipher_text: cipher_text.into(),
-        }
+    pub fn new(username: Option<String>,
+                  email: Option<String>,
+                  comment: Option<String>,
+                  cipher_text: String) -> Self {
+        Self { username, email, comment, cipher_text }
     }
 
     /// Write a password to disk. If `new` is `true` then the on-disk file must not already exist.
@@ -76,6 +70,44 @@ impl EncryptedPassword {
             clear_text: clear_text,
         })
     }
+
+    /// Edits a password file.
+    /// If the password cipher text is to be updated, a new `Self` instance is returned, otherwise
+    /// the existing one is mutated and returned.
+    pub fn edit(mut self, edit: PasswordEdit, gpg: &mut GPG, encrypt_to: &Vec<String>)
+        -> Result<Self, Box<Error>> {
+        if let Some(username) = edit.username {
+            if username == "" {
+                self.username = None;
+            } else {
+                self.username = Some(username);
+            }
+        }
+
+        if let Some(email) = edit.email {
+            if email == "" {
+                self.email = None;
+            } else {
+                self.email = Some(email);
+            }
+        }
+
+        if let Some(comment) = edit.comment {
+            if comment == "" {
+                self.comment = None;
+            } else {
+                self.comment = Some(comment);
+            }
+        }
+
+        if let Some(clear_text) = edit.clear_text {
+            // Rather then decrypting the old value mutating it, we make a new instance altogether.
+            let cpw = ClearPassword::new(self.username, self.email, self.comment, clear_text);
+            Ok(cpw.encrypt(gpg, encrypt_to)?)
+        } else {
+            Ok(self)
+        }
+    }
 }
 
 
@@ -90,24 +122,15 @@ pub struct ClearPassword {
 
 /// An unencrypted password and its meta-data.
 impl ClearPassword {
-    pub fn new<A>(username: Option<A>,
-                  email: Option<A>,
-                  comment: Option<A>,
-                  clear_text: A) -> Self where A: Into<String> {
-        Self {
-            username: username.map(|a| a.into()),
-            email: email.map(|a| a.into()),
-            comment: comment.map(|a| a.into()),
-            clear_text: clear_text.into(),
-        }
+    pub fn new(username: Option<String>,
+                  email: Option<String>,
+                  comment: Option<String>,
+                  clear_text: String) -> Self {
+        Self { username, email, comment, clear_text }
     }
 
     pub fn clear_text(&self) -> &str {
         &self.clear_text
-    }
-
-    pub fn new_clear_text<A>(&mut self, clear_text: A) where A: Into<String> {
-        self.clear_text = clear_text.into();
     }
 
     /// Consumes and encrypts the password returning an `EncryptedPassword`.
@@ -131,18 +154,6 @@ impl ClearPassword {
     pub fn comment(&self) -> Option<&str> {
         self.comment.as_ref().map(|s| s.as_str())
     }
-
-    pub fn new_username<A>(&mut self, username: Option<A>) where A: Into<String> {
-        self.username = username.map(|u| u.into());
-    }
-
-    pub fn new_email<A>(&mut self, email: Option<A>) where A: Into<String> {
-        self.email = email.map(|e| e.into());
-    }
-
-    pub fn new_comment<A>(&mut self, comment: Option<A>) where A: Into<String> {
-        self.comment = comment.map(|c| c.into());
-    }
 }
 
 /// A password edit description. Here a `None` means "no change".
@@ -157,10 +168,10 @@ pub struct PasswordEdit {
 }
 
 impl PasswordEdit {
-    pub fn new<A>(username: Option<A>,
-                  email: Option<A>,
-                  comment: Option<A>,
-                  clear_text: Option<A>) -> Self where A: Into<String> {
+    pub fn new(username: Option<String>,
+                  email: Option<String>,
+                  comment: Option<String>,
+                  clear_text: Option<String>) -> Self {
         Self {
             username: username.map(|a| a.into()),
             email: email.map(|a| a.into()),
