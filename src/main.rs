@@ -127,9 +127,10 @@ fn main() {
                                                  .takes_value(true)
                                                  .help("Set the comment address (pass \"\" \
                                                         to remove the existing comment)"))
-                                        .arg(Arg::with_name("--password")
+                                        .arg(Arg::with_name("password")
                                                  .short("-p")
                                                  .long("--password")
+                                                 .takes_value(false)
                                                  .help("Request a password reset"))
                                         .arg(Arg::with_name("pwid")
                                                  .index(1)
@@ -187,7 +188,7 @@ fn main() {
             let email = match_to_arg(matches.value_of("email"));
             let comment = match_to_arg(matches.value_of("comment"));
 
-            let clear_text = if matches.value_of("password").is_some() {
+            let clear_text = if matches.is_present("password") {
                 // Read in the password as late as possible.
                 Some(read_cleartext())
             } else {
