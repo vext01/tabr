@@ -354,39 +354,7 @@ impl Tabr {
 
         let epw = EncryptedPassword::from_file(self.password_path(pwid))
             .map_err(|e|format!("Failed to read password '{}' from file: {}", pwid, e))?;
-
-        let mut cpw = epw.decrypt(&mut self.gpg)
-            .map_err(|e| format!("Failed to decrypt password '{}': {}", pwid, e))?;
-
-        if let Some(username) = edit.username() {
-            if username == "" {
-                cpw.new_username::<String>(None);
-            } else {
-                cpw.new_username(Some(username));
-            }
-        }
-        if let Some(email) = edit.email() {
-            if email == "" {
-                cpw.new_email::<String>(None);
-            } else {
-                cpw.new_email(Some(email));
-            }
-        }
-
-        if let Some(comment) = edit.comment() {
-            if comment == "" {
-                cpw.new_comment::<String>(None);
-            } else {
-                cpw.new_comment(Some(comment));
-            }
-        }
-
-        if let Some(clear_text) = edit.clear_text() {
-            cpw.new_clear_text(clear_text);
-        }
-
-        let epw = cpw.encrypt(&mut self.gpg, &self.config.encrypt_to())
-                     .map_err(|e| format!("Failed to encrypt: {}", e))?;
+        let epw = epw.edit(edit, &mut self.gpg, &self.config.encrypt_to())?;
         epw.to_disk(self.password_path(pwid), false)
            .map_err(|e| format!("Failed to write pasword file: {}", e))?;
 
@@ -484,7 +452,7 @@ mod tests {
     #[test]
     fn test_map1() {
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(None, None, None, "secret");
+        let pw = ClearPassword::new(None, None, None, String::from("secret"));
         st.app.add_password("test123", pw).unwrap();
         assert_eq!(st.count_passwords(), 1);
     }
@@ -516,7 +484,7 @@ mod tests {
     fn test_bogus_encrypt_to1() {
         let ctext = "encrypt_to = [\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"]";
         let mut st = TestState::new(Some(ctext));
-        let pw = ClearPassword::new(None, None, None, "secret");
+        let pw = ClearPassword::new(None, None, None, String::from("secret"));
         let res = st.app.add_password("test123", pw);
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().to_string(),
@@ -527,7 +495,7 @@ mod tests {
     #[test]
     fn test_already_exists() {
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(None, None, None, "secret");
+        let pw = ClearPassword::new(None, None, None, String::from("secret"));
         let pw2 = pw.clone();
         st.app.add_password("abc", pw).unwrap();
         match st.app.add_password("abc", pw2) {
@@ -540,8 +508,10 @@ mod tests {
     fn test_load_metadata_encrypted() {
         let pwid = "abc";
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(Some("the_user"), Some("the_email"),
-                                    Some("the_comment"), "secret");
+        let pw = ClearPassword::new(Some(String::from("the_user")),
+                                    Some(String::from("the_email")),
+                                    Some(String::from("the_comment")),
+                                    String::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
         match st.app.load_password(pwid) {
@@ -558,8 +528,10 @@ mod tests {
     fn test_load_metadata_decrypted() {
         let pwid = "abc";
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(Some("the_user"), Some("the_email"),
-                                    Some("the_comment"), "secret");
+        let pw = ClearPassword::new(Some(String::from("the_user")),
+                                    Some(String::from("the_email")),
+                                    Some(String::from("the_comment")),
+                                    String::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
         match st.app.get_clear_password(pwid) {
@@ -587,11 +559,16 @@ mod tests {
     fn test_edit1() {
         let pwid = "abc";
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(Some("username"), Some("email"), Some("comment"), "secret");
+        let pw = ClearPassword::new(Some(String::from("username")),
+                                    Some(String::from("email")),
+                                    Some(String::from("comment")),
+                                    String::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
-        let edit = PasswordEdit::new(Some("username2"), Some("email2"), Some("comment2"),
-                                     Some("secret2"));
+        let edit = PasswordEdit::new(Some(String::from("username2")),
+                                     Some(String::from("email2")),
+                                     Some(String::from("comment2")),
+                                     Some(String::from("secret2")));
         st.app.edit_password(pwid, edit).unwrap();
 
         let new_pw = st.app.get_clear_password(pwid).unwrap();
@@ -606,10 +583,13 @@ mod tests {
     fn test_edit2() {
         let pwid = "abc";
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(Some("username"), Some("email"), Some("comment"), "secret");
+        let pw = ClearPassword::new(Some(String::from("username")),
+                                    Some(String::from("email")),
+                                    Some(String::from("comment")),
+                                    String::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
-        let edit = PasswordEdit::new::<&str>(None, None, None, None);
+        let edit = PasswordEdit::new(None, None, None, None);
         st.app.edit_password(pwid, edit).unwrap();
 
         let new_pw = st.app.get_clear_password(pwid).unwrap();
@@ -639,7 +619,10 @@ mod tests {
         let pw = ClearPassword::new(Some(user), Some(email), Some(comment), pw);
         st.app.add_password(pwid, pw).unwrap();
 
-        let edit = PasswordEdit::new(Some("user"), Some("email"), Some("comment"), Some("secret"));
+        let edit = PasswordEdit::new(Some(String::from("user")),
+                                     Some(String::from("email")),
+                                     Some(String::from("comment")),
+                                     Some(String::from("secret")));
         st.app.edit_password(pwid, edit).unwrap();
 
         let new_pw = st.app.get_clear_password(pwid).unwrap();
