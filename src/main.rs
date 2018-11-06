@@ -4,6 +4,7 @@ extern crate clap;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
+extern crate dirs;
 
 use tabr::{Tabr, ClearPassword, NoConfig, PasswordEdit};
 use ttyaskpass::askpass;
@@ -48,7 +49,7 @@ fn main() {
         match env::var("TABR_DIR") {
             Ok(path) => PathBuf::from(path),
             _ => {
-                let mut path = match env::home_dir() {
+                let mut path = match dirs::home_dir() {
                     None => print_error("Can't determine home directory"),
                     Some(h) => h,
                 };
