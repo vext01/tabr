@@ -618,4 +618,34 @@ mod tests {
         assert_eq!(new_pw.comment().unwrap(), "comment");
         assert_eq!(new_pw.clear_text(), "secret");
     }
+
+    // Test case for issue #10: Editting fields shorter corrupts password file.
+    #[test]
+    fn test_edit3() {
+        let pwid = "abc";
+        let mut st = TestState::new(None);
+
+        let mut user = String::new();
+        let mut email = String::new();
+        let mut comment = String::new();
+        let mut pw = String::new();
+        for _ in 1..100 {
+            user.push_str("longuser");
+            email.push_str("longemail");
+            comment.push_str("This is a really long comment");
+            pw.push_str("xxxyyyzzz");
+        }
+
+        let pw = ClearPassword::new(Some(user), Some(email), Some(comment), pw);
+        st.app.add_password(pwid, pw).unwrap();
+
+        let edit = PasswordEdit::new(Some("user"), Some("email"), Some("comment"), Some("secret"));
+        st.app.edit_password(pwid, edit).unwrap();
+
+        let new_pw = st.app.get_clear_password(pwid).unwrap();
+        assert_eq!(new_pw.username().unwrap(), "user");
+        assert_eq!(new_pw.email().unwrap(), "email");
+        assert_eq!(new_pw.comment().unwrap(), "comment");
+        assert_eq!(new_pw.clear_text(), "secret");
+    }
 }

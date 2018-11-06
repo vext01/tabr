@@ -35,7 +35,8 @@ impl EncryptedPassword {
         let tml = toml::to_vec(self)?;
         let mut opts = OpenOptions::new();
         opts.write(true)
-            .mode(PROTECTED_MODE);
+            .mode(PROTECTED_MODE)
+            .truncate(true);
 
         if new {
             opts.create_new(true);
