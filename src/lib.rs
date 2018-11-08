@@ -9,6 +9,7 @@ extern crate walkdir;
 extern crate clipboard;
 #[cfg(test)]
 extern crate tempfile;
+extern crate secstr;
 
 mod config;
 mod password;
@@ -177,7 +178,7 @@ impl Tabr {
     /// Print a password string in the clear to stdout.
     pub fn stdout(&mut self, pwid: &str) -> Result<(), Box<Error>> {
         let pw = self.get_clear_password(pwid)?;
-        println!("{}", pw.clear_text());
+        println!("{}", String::from_utf8(pw.clear_text().unsecure().to_vec())?);
         Ok(())
     }
 
@@ -312,11 +313,14 @@ impl Tabr {
                     .map_err(|e| format!("Failed to decrypt password '{}': {}", pwid, e))?;
         let clear_text = pw.clear_text();
 
-        // Load the clipboards.
-        pri_clip.set_contents(String::from(clear_text))
+        // Load the clipboards. New scope to drop clear text as soon as possible.
+        {
+            let clear = String::from_utf8(clear_text.unsecure().to_vec())?;
+            pri_clip.set_contents(clear.clone())
                 .map_err(|e| format!("Failed to load 'primary' clipboard: {}", e))?;
-        clip_clip.set_contents(String::from(clear_text))
+            clip_clip.set_contents(clear)
                 .map_err(|e| format!("Failed to load 'clipboard' clipboard: {}", e))?;
+        }
 
         // Notify the user.
         let mut msg = String::new();
@@ -371,6 +375,7 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use std::collections::HashSet;
+    use secstr::SecStr;
 
     const TEST_KEY_FILENAME: &'static str = "test_key.asc";
     const DEFAULT_CONFIG_TEXT: &'static str = "encrypt_to = [\"745727B1E02B76067B584B593DC6B84E4ACE6921\"]";
@@ -452,7 +457,7 @@ mod tests {
     #[test]
     fn test_map1() {
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(None, None, None, String::from("secret"));
+        let pw = ClearPassword::new(None, None, None, SecStr::from("secret"));
         st.app.add_password("test123", pw).unwrap();
         assert_eq!(st.count_passwords(), 1);
     }
@@ -465,7 +470,7 @@ mod tests {
         for i in 0..10 {
             let name = format!("pass{}", i);
             let clear_text = format!("secret{}", i);
-            let pw = ClearPassword::new(None, None, None, clear_text);
+            let pw = ClearPassword::new(None, None, None, SecStr::from(clear_text));
             st.app.add_password(&name, pw).unwrap();
             expect.insert(name);
         }
@@ -484,7 +489,7 @@ mod tests {
     fn test_bogus_encrypt_to1() {
         let ctext = "encrypt_to = [\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"]";
         let mut st = TestState::new(Some(ctext));
-        let pw = ClearPassword::new(None, None, None, String::from("secret"));
+        let pw = ClearPassword::new(None, None, None, SecStr::from("secret"));
         let res = st.app.add_password("test123", pw);
         assert!(res.is_err());
         assert_eq!(res.err().unwrap().to_string(),
@@ -495,7 +500,7 @@ mod tests {
     #[test]
     fn test_already_exists() {
         let mut st = TestState::new(None);
-        let pw = ClearPassword::new(None, None, None, String::from("secret"));
+        let pw = ClearPassword::new(None, None, None, SecStr::from("secret"));
         let pw2 = pw.clone();
         st.app.add_password("abc", pw).unwrap();
         match st.app.add_password("abc", pw2) {
@@ -511,7 +516,7 @@ mod tests {
         let pw = ClearPassword::new(Some(String::from("the_user")),
                                     Some(String::from("the_email")),
                                     Some(String::from("the_comment")),
-                                    String::from("secret"));
+                                    SecStr::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
         match st.app.load_password(pwid) {
@@ -531,7 +536,7 @@ mod tests {
         let pw = ClearPassword::new(Some(String::from("the_user")),
                                     Some(String::from("the_email")),
                                     Some(String::from("the_comment")),
-                                    String::from("secret"));
+                                    SecStr::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
         match st.app.get_clear_password(pwid) {
@@ -562,20 +567,20 @@ mod tests {
         let pw = ClearPassword::new(Some(String::from("username")),
                                     Some(String::from("email")),
                                     Some(String::from("comment")),
-                                    String::from("secret"));
+                                    SecStr::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
         let edit = PasswordEdit::new(Some(String::from("username2")),
                                      Some(String::from("email2")),
                                      Some(String::from("comment2")),
-                                     Some(String::from("secret2")));
+                                     Some(SecStr::from("secret2")));
         st.app.edit_password(pwid, edit).unwrap();
 
         let new_pw = st.app.get_clear_password(pwid).unwrap();
         assert_eq!(new_pw.username().unwrap(), "username2");
         assert_eq!(new_pw.email().unwrap(), "email2");
         assert_eq!(new_pw.comment().unwrap(), "comment2");
-        assert_eq!(new_pw.clear_text(), "secret2");
+        assert_eq!(new_pw.clear_text(), &SecStr::from("secret2"));
     }
 
     // Test editting nothing. Should be a NOP.
@@ -586,7 +591,7 @@ mod tests {
         let pw = ClearPassword::new(Some(String::from("username")),
                                     Some(String::from("email")),
                                     Some(String::from("comment")),
-                                    String::from("secret"));
+                                    SecStr::from("secret"));
         st.app.add_password(pwid, pw).unwrap();
 
         let edit = PasswordEdit::new(None, None, None, None);
@@ -596,7 +601,7 @@ mod tests {
         assert_eq!(new_pw.username().unwrap(), "username");
         assert_eq!(new_pw.email().unwrap(), "email");
         assert_eq!(new_pw.comment().unwrap(), "comment");
-        assert_eq!(new_pw.clear_text(), "secret");
+        assert_eq!(new_pw.clear_text(), &SecStr::from("secret"));
     }
 
     // Test case for issue #10: Editting fields shorter corrupts password file.
@@ -616,19 +621,19 @@ mod tests {
             pw.push_str("xxxyyyzzz");
         }
 
-        let pw = ClearPassword::new(Some(user), Some(email), Some(comment), pw);
+        let pw = ClearPassword::new(Some(user), Some(email), Some(comment), SecStr::from(pw));
         st.app.add_password(pwid, pw).unwrap();
 
         let edit = PasswordEdit::new(Some(String::from("user")),
                                      Some(String::from("email")),
                                      Some(String::from("comment")),
-                                     Some(String::from("secret")));
+                                     Some(SecStr::from("secret")));
         st.app.edit_password(pwid, edit).unwrap();
 
         let new_pw = st.app.get_clear_password(pwid).unwrap();
         assert_eq!(new_pw.username().unwrap(), "user");
         assert_eq!(new_pw.email().unwrap(), "email");
         assert_eq!(new_pw.comment().unwrap(), "comment");
-        assert_eq!(new_pw.clear_text(), "secret");
+        assert_eq!(new_pw.clear_text(), &SecStr::from("secret"));
     }
 }

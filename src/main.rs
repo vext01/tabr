@@ -5,6 +5,7 @@ extern crate clap;
 extern crate log;
 extern crate env_logger;
 extern crate dirs;
+extern crate secstr;
 
 use tabr::{Tabr, ClearPassword, NoConfig, PasswordEdit};
 use ttyaskpass::askpass;
@@ -14,6 +15,7 @@ use std::env;
 use std::error::Error;
 use clap::{Arg, App, SubCommand};
 use std::process::exit;
+use secstr::SecStr;
 
 fn print_error(msg: &str) -> ! {
     eprintln!("Error: {}", msg);
@@ -151,10 +153,12 @@ fn main() {
         m.map(|s| String::from(s))
     }
 
-    fn read_cleartext() -> String {
+    /// Read in a password from stdin and return wrapped in a SecStr.
+    fn read_cleartext() -> SecStr {
         let clear_text_arr: Vec<u8> = askpass("password: ", '*').unwrap();
-        String::from_utf8(clear_text_arr)
-               .unwrap_or_else(|_|print_error("failed to read in cleartext"))
+        let unsec_str = String::from_utf8(clear_text_arr)
+               .unwrap_or_else(|_|print_error("failed to read in cleartext"));
+        SecStr::from(unsec_str)
     }
 
     let matches = app.get_matches();
