@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::ffi::CString;
 use std::error::Error;
 use std::fmt::{self, Formatter, Display};
+use secstr::SecStr;
 
 /// Encapsulates GnuPG operations, lazily initialising gpgme as necessary.
 pub struct GPG {
@@ -59,7 +60,7 @@ impl GPG {
     }
 
     /// Encrypt a cleartext string.
-    pub fn encrypt_string(&mut self, clear_text: &str,
+    pub fn encrypt_string(&mut self, clear_text: &SecStr,
                           encrypt_to: &Vec<String>) -> Result<String, Box<Error>> {
         let ctx = self.ctx();
         let mut keys = Vec::new();
@@ -76,16 +77,16 @@ impl GPG {
         }
 
         let mut output = Vec::new();
-        ctx.encrypt(&keys, clear_text, &mut output)?;
+        ctx.encrypt(&keys, clear_text.unsecure(), &mut output)?;
         Ok(String::from_utf8(output)?)
     }
 
     /// Decrypt a chipertext string.
-    pub fn decrypt_string(&mut self, cipher_text: &str) -> Result<String, Box<Error>> {
+    pub fn decrypt_string(&mut self, cipher_text: &str) -> Result<SecStr, Box<Error>> {
         let ctx = self.ctx();
         let mut clear_text_bytes = Vec::new();
         ctx.decrypt(cipher_text, &mut clear_text_bytes)?;
-        Ok(String::from_utf8(clear_text_bytes)?)
+        Ok(SecStr::new(clear_text_bytes))
     }
 
     /// Import a keypair (used in integration tests).

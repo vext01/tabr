@@ -15,6 +15,7 @@ gpgme = "0.7"
 ttyaskpass = "1.2"
 clipboard = "0.4"
 dirs = "1.0"
+secstr = { version = "0.3", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3.0"

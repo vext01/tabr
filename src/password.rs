@@ -6,6 +6,7 @@ use gpg::{GPG};
 use std::os::unix::fs::OpenOptionsExt;
 use PROTECTED_MODE;
 use std::error::Error;
+use secstr::SecStr;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EncryptedPassword {
@@ -117,7 +118,7 @@ pub struct ClearPassword {
     username: Option<String>,       // Username associated with the password.
     email: Option<String>,          // Email address associated with the password.
     comment: Option<String>,        // Any comments the user may wish to include.
-    clear_text: String,             // The password text in the clear.
+    clear_text: SecStr,             // The password text in the clear.
 }
 
 /// An unencrypted password and its meta-data.
@@ -125,11 +126,11 @@ impl ClearPassword {
     pub fn new(username: Option<String>,
                   email: Option<String>,
                   comment: Option<String>,
-                  clear_text: String) -> Self {
+                  clear_text: SecStr) -> Self {
         Self { username, email, comment, clear_text }
     }
 
-    pub fn clear_text(&self) -> &str {
+    pub fn clear_text(&self) -> &SecStr {
         &self.clear_text
     }
 
@@ -164,35 +165,19 @@ pub struct PasswordEdit {
     username: Option<String>,
     email: Option<String>,
     comment: Option<String>,
-    clear_text: Option<String>,
+    clear_text: Option<SecStr>,
 }
 
 impl PasswordEdit {
     pub fn new(username: Option<String>,
                   email: Option<String>,
                   comment: Option<String>,
-                  clear_text: Option<String>) -> Self {
+                  clear_text: Option<SecStr>) -> Self {
         Self {
             username: username.map(|a| a.into()),
             email: email.map(|a| a.into()),
             comment: comment.map(|a| a.into()),
             clear_text: clear_text.map(|a| a.into()),
         }
-    }
-
-    pub fn clear_text(&self) -> Option<&str> {
-        self.clear_text.as_ref().map(|s| s.as_str())
-    }
-
-    pub fn username<'a>(&'a self) -> Option<&'a str> {
-        self.username.as_ref().map(|s| s.as_str())
-    }
-
-    pub fn email(&self) -> Option<&str> {
-        self.email.as_ref().map(|s| s.as_str())
-    }
-
-    pub fn comment(&self) -> Option<&str> {
-        self.comment.as_ref().map(|s| s.as_str())
     }
 }
