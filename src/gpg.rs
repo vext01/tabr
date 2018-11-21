@@ -65,7 +65,7 @@ impl GPG {
         let ctx = self.ctx();
         let mut keys = Vec::new();
         for fingerprint in encrypt_to {
-            match ctx.find_key(fingerprint) {
+            match ctx.get_key(fingerprint) {
                 Ok(key) => {
                     if !key.can_encrypt() {
                         return Err(Box::new(RecipientError::CantEncryptTo(fingerprint.to_owned())));

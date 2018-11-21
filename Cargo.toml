@@ -4,16 +4,16 @@ version = "0.1.0"
 authors = ["Edd Barrett <vext01@gmail.com>"]
 
 [dependencies]
-env_logger = "0.4"
-log = "0.3"
-walkdir = "1.0"
-clap = "2.26"
+env_logger = "0.6"
+log = "0.4"
+walkdir = "2.0"
+clap = "2.32"
 toml = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
-gpgme = "0.7"
+gpgme = "0.8"
 ttyaskpass = "1.2"
-clipboard = "0.4"
+clipboard = "0.5"
 dirs = "1.0"
 secstr = { version = "0.3", features = ["serde"] }
 

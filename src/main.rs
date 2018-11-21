@@ -43,7 +43,7 @@ fn advise_config(path: &PathBuf) -> ! {
 }
 
 fn main() {
-    env_logger::init().expect("failed to init logger");
+    env_logger::init();
     info!("starting up");
 
     // Figure out where the state directory is.
