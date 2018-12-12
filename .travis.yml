@@ -1,13 +1,13 @@
 language: rust
 rust: stable
 cache: cargo
+dist: xenial
+
+env:
+    - GPGME_USE_BUNDLED=yes
 
 before_script:
     - export PATH="$PATH:$HOME/.cargo/bin"
-
-before_install:
-    - sudo apt-get update -qq
-    - sudo apt-get install libgpgme11-dev
 
 script:
     - cargo test
