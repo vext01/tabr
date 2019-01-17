@@ -142,6 +142,20 @@ fn main() {
                                                  .help("The ID of the password to edit"))
                                         .about("Edit the contents of an existing password \
                                                 entry"))
+                 .subcommand(SubCommand::with_name("pwned")
+                                        .arg(Arg::with_name("verbose")
+                                                 .short("-v")
+                                                 .long("--verbose")
+                                                 .takes_value(false)
+                                                 .help("Print password IDs as they are being checked"))
+                                        .arg(Arg::with_name("pwid")
+                                                 .index(1)
+                                                 .required(false)
+                                                 .takes_value(true)
+                                                 .multiple(true)
+                                                 .help("The ID of the password to check
+                                                     (checks all passwords if absent)"))
+                                        .about("Checks the password store against the pwnedpasswords.com database"))
                  .subcommand(SubCommand::with_name("stdout")
                                         .arg(Arg::with_name("pwid")
                                                  .index(1)
@@ -202,6 +216,16 @@ fn main() {
 
             let mut pwe = PasswordEdit::new(username, email, comment, clear_text);
             tabr.edit_password(&pwid, pwe)
+        },
+        Some("pwned") => {
+            let matches = matches.subcommand_matches("pwned").unwrap();
+            let pwids = if let Some(vals) = matches.values_of("pwid") {
+                vals.collect()
+            } else {
+                Vec::new()
+            };
+            let verbose = matches.is_present("verbose");
+            tabr.check_pwned(pwids, verbose)
         },
         Some("stdout") => {
             let matches = matches.subcommand_matches("stdout").unwrap();

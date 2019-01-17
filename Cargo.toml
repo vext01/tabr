@@ -16,6 +16,8 @@ ttyaskpass = "1.2"
 clipboard = "0.5"
 dirs = "1.0"
 secstr = { version = "0.3", features = ["serde"] }
+sha1 = "0.6"
+knock = "0.1"
 
 [dev-dependencies]
 tempfile = "3.0"
