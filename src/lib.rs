@@ -10,10 +10,13 @@ extern crate clipboard;
 #[cfg(test)]
 extern crate tempfile;
 extern crate secstr;
+extern crate sha1;
+extern crate knock;
 
 mod config;
 mod password;
 mod gpg;
+mod pwned;
 
 pub use password::{ClearPassword, PasswordEdit};
 
@@ -63,7 +66,7 @@ impl CustomErrorMessage {
 pub struct Tabr {
     config: Config,
     state_dir: PathBuf,
-    gpg: GPG,
+    gnupg_home: Option<PathBuf>,
 }
 
 impl Tabr {
@@ -84,7 +87,7 @@ impl Tabr {
         Ok(Self {
             config: Config::new(&state_dir)?,
             state_dir: state_dir,
-            gpg: GPG::new(gnupg_home),
+            gnupg_home,
         })
     }
 
@@ -115,7 +118,7 @@ impl Tabr {
                 Self::check_secure(path);
                 if !path.is_dir() {
                     let stripped = path.strip_prefix(&passwords_dir).unwrap();
-                    f_res = f(stripped.to_str().unwrap().trim_right_matches(".toml"));
+                    f_res = f(stripped.to_str().unwrap().trim_end_matches(".toml"));
                 }
             })?;
             f_res?;
@@ -136,7 +139,7 @@ impl Tabr {
                 Self::check_secure(path);
                 if !path.is_dir() {
                     let stripped = path.strip_prefix(&passwords_dir).unwrap();
-                    f_res = f(stripped.to_str().unwrap().trim_right_matches(".toml"));
+                    f_res = f(stripped.to_str().unwrap().trim_end_matches(".toml"));
                 }
             })?;
             f_res?;
@@ -170,7 +173,9 @@ impl Tabr {
         info!("Loading and decrypting password '{}'", pwid);
         let epw = self.load_password(pwid)
                       .map_err(|e| format!("Failed to load password '{}': {}", pwid, e))?;
-        let cpw = epw.decrypt(&mut self.gpg)
+
+        let mut gpg = GPG::new(self.gnupg_home.clone());
+        let cpw = epw.decrypt(&mut gpg)
                      .map_err(|e| format!("Failed to decrypt password '{}': {}", pwid, e))?;
         Ok(cpw)
     }
@@ -212,7 +217,8 @@ impl Tabr {
         }
 
         // And commit to disk.
-        let epw = pw.encrypt(&mut self.gpg, &self.config.encrypt_to())
+        let mut gpg = GPG::new(self.gnupg_home.clone());
+        let epw = pw.encrypt(&mut gpg, &self.config.encrypt_to())
                     .map_err(|e| format!("Failed to encrypt: {}", e))?;
         epw.to_disk(full_path, true)
            .map_err(|e| format!("Failed to write pasword file: {}", e))?;
@@ -309,7 +315,8 @@ impl Tabr {
         let epw = EncryptedPassword::from_file(self.password_path(pwid))
                                     .map_err(|e| format!("Failed to read password '{}' from file: {}", pwid, e))?;
 
-        let pw = epw.decrypt(&mut self.gpg)
+        let mut gpg = GPG::new(self.gnupg_home.clone());
+        let pw = epw.decrypt(&mut gpg)
                     .map_err(|e| format!("Failed to decrypt password '{}': {}", pwid, e))?;
         let clear_text = pw.clear_text();
 
@@ -358,10 +365,63 @@ impl Tabr {
 
         let epw = EncryptedPassword::from_file(self.password_path(pwid))
             .map_err(|e|format!("Failed to read password '{}' from file: {}", pwid, e))?;
-        let epw = epw.edit(edit, &mut self.gpg, &self.config.encrypt_to())?;
+        let mut gpg = GPG::new(self.gnupg_home.clone());
+        let epw = epw.edit(edit, &mut gpg, &self.config.encrypt_to())?;
         epw.to_disk(self.password_path(pwid), false)
            .map_err(|e| format!("Failed to write pasword file: {}", e))?;
 
+        Ok(())
+    }
+
+    pub fn check_pwned(&mut self, pwids: Vec<&str>, verbose: bool) -> Result<(), Box<Error>> {
+        let mut pwned_pws = Vec::new();
+        let mut gpg = GPG::new(self.gnupg_home.clone());
+        let all = pwids.is_empty();
+
+        if all && verbose {
+            println!("\nChecking all passwords:\n");
+        }
+
+        self.map_password_ids_mut(|pwid| {
+            // Skip if necessary (could be more efficient).
+            if !all && !pwids.contains(&pwid) {
+                return Ok(());
+            }
+
+            if verbose {
+                print!("{}: ", pwid);
+                io::stdout().flush().unwrap();
+            }
+
+            let epw = EncryptedPassword::from_file(self.password_path(pwid))
+                .map_err(|e|format!("Failed to read password '{}' from file: {}", pwid, e))?;
+
+            let pw = epw.decrypt(&mut gpg)
+                .map_err(|e| format!("Failed to decrypt password '{}': {}", pwid, e))?;
+
+            let pwnage = pwned::is_pwned(pw.clear_text())?;
+            if pwnage {
+                pwned_pws.push(pwid.to_owned());
+            }
+
+            if verbose {
+                if pwnage {
+                    println!("IN PWNED DB!");
+                } else {
+                    println!("ok");
+                }
+            }
+
+            Ok(())
+        })?;
+
+        if !pwned_pws.is_empty() {
+            println!("\nThe SHA1 hash for following passwords are in the pwnedpasswords.com database:");
+            for p in pwned_pws {
+                println!("  {}", p);
+            }
+            println!("\nIt's possible these passwords are compromised.");
+        }
         Ok(())
     }
 }
