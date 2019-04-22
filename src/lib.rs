@@ -118,7 +118,7 @@ impl Tabr {
                 Self::check_secure(path);
                 if !path.is_dir() {
                     let stripped = path.strip_prefix(&passwords_dir).unwrap();
-                    f_res = f(stripped.to_str().unwrap().trim_right_matches(".toml"));
+                    f_res = f(stripped.to_str().unwrap().trim_end_matches(".toml"));
                 }
             })?;
             f_res?;
@@ -139,7 +139,7 @@ impl Tabr {
                 Self::check_secure(path);
                 if !path.is_dir() {
                     let stripped = path.strip_prefix(&passwords_dir).unwrap();
-                    f_res = f(stripped.to_str().unwrap().trim_right_matches(".toml"));
+                    f_res = f(stripped.to_str().unwrap().trim_end_matches(".toml"));
                 }
             })?;
             f_res?;
